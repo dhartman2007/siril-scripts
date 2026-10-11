@@ -11,6 +11,7 @@ A comprehensive Python script that automates the preprocessing workflow for smar
 - ZWO Seestar S30
 - ZWO Seestar S30 Pro
 - ZWO Seestar S50
+- ZWO Seestar S50 Pro (preprocessing/stacking; automatic SPCC disabled)
 - Dwarf Mini
 - Dwarf 2
 - Dwarf 3
@@ -28,6 +29,10 @@ A comprehensive Python script that automates the preprocessing workflow for smar
 - Background extraction and filtering options
 - Spectrophotometric Color Calibration (SPCC) for supported telescopes
 - Save/Load presets functionality
+
+**Seestar S50 Pro (fork addition):** The Smart Telescope script now offers an S50 Pro selection and recognizes common S50 Pro identifiers in FITS headers (including `Seestar S50 Pro`, `ZWO Seestar S50 Pro`, and `S50 Pro`). Its telephoto camera uses an OmniVision OS08B10 sensor with 2.9 µm pixels and a 260 mm focal length. The built-in dual-band LP filter is specified as Hα 20 nm / OIII 30 nm.
+
+Automatic SPCC is deliberately disabled for the S50 Pro until a validated sensor spectral-response profile is available. Do **not** substitute the S30 Pro's Sony IMX585 response for the S50 Pro; perform manual color calibration after stacking. The wide-angle camera is a different sensor (Sony IMX586) and has not been specifically validated with this workflow. FITS-header naming, preprocessing, and stacking still need to be checked against real S50 Pro lights. Existing Seestar S30/S30 Pro/S50 selections are unchanged.
 
 **Demo Video:** [YouTube - Smart Telescope Processing](https://www.youtube.com/watch?v=QRZ5mS79fGQ)
 
