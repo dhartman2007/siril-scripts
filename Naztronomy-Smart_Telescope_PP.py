@@ -135,6 +135,7 @@ TELESCOPES = [
     "ZWO Seestar S30",
     "ZWO Seestar S30 Pro",
     "ZWO Seestar S50",
+    "ZWO Seestar S50 Pro",
     "Dwarf Mini",
     "Dwarf 3",
     "Dwarf 2",
@@ -148,6 +149,7 @@ FILTER_OPTIONS_MAP = {
     "ZWO Seestar S30": ["No Filter (Broadband)", "LP (Narrowband)"],
     "ZWO Seestar S30 Pro": ["No Filter (Broadband)", "LP (Narrowband)"],
     "ZWO Seestar S50": ["No Filter (Broadband)", "LP (Narrowband)"],
+    "ZWO Seestar S50 Pro": ["No Filter (Broadband)", "LP (Narrowband)"],
     "Dwarf Mini": ["Astro filter (UV/IR)", "Dual-Band"],
     "Dwarf 3": ["Astro filter (UV/IR)", "Dual-Band"],
     "Dwarf 2": ["Astro filter (UV/IR)"],
@@ -169,6 +171,17 @@ FILTER_COMMANDS_MAP = {
     "ZWO Seestar S50": {
         "No Filter (Broadband)": ["-oscfilter=UV/IR Block"],
         "LP (Narrowband)": ["-oscfilter=ZWO Seestar LP"],
+    },
+    "ZWO Seestar S50 Pro": {
+        "No Filter (Broadband)": ["-oscfilter=UV/IR Block"],
+        # S50 Pro built-in LP filter: H-alpha 20 nm, OIII 30 nm (manufacturer specs).
+        # Automatic SPCC is disabled until a validated OS08B10 response is available.
+        "LP (Narrowband)": [
+            "-narrowband",
+            "-rwl=656.28", "-rbw=20",
+            "-gwl=500.70", "-gbw=30",
+            "-bwl=500.70", "-bbw=30",
+        ],
     },
     "Dwarf Mini": {
         "Astro filter (UV/IR)": ["-oscfilter=UV/IR Block"],
@@ -453,6 +466,10 @@ class PreprocessingInterface(QMainWindow):
         # Mapping from FITS header values to UI telescope names
         # Note: Order matters! Put more specific/longer strings first
         telescope_map = {
+            "ZWO Seestar S50 Pro": "ZWO Seestar S50 Pro",
+            "Seestar S50 Pro": "ZWO Seestar S50 Pro",
+            "S50 Pro": "ZWO Seestar S50 Pro",
+            "S50P": "ZWO Seestar S50 Pro",
             "ZWO Seestar S30 Pro": "ZWO Seestar S30 Pro",
             "ZWO Seestar S30": "ZWO Seestar S30",
             "Seestar S50": "ZWO Seestar S50",
@@ -511,7 +528,8 @@ class PreprocessingInterface(QMainWindow):
                 for telescope_local_name, ui_name in telescope_map.items():
                     # Check if any of the effective header values start with this key
                     if any(
-                        val.startswith(telescope_local_name) for val in header_values
+                        str(val).casefold().startswith(telescope_local_name.casefold())
+                        for val in header_values
                     ):
                         mapped_telescope = ui_name
                         found_match = True
@@ -1173,8 +1191,14 @@ class PreprocessingInterface(QMainWindow):
         whiteref="Average Spiral Galaxy",
     ):
 
-        recoded_sensor = oscsensor
         """SPCC with oscsensor, filter, catalog, and whiteref."""
+        if oscsensor == "ZWO Seestar S50 Pro":
+            raise ValueError(
+                "Automatic S50 Pro SPCC requires a validated OmniVision OS08B10 "
+                "spectral response profile. Use manual color calibration instead."
+            )
+
+        recoded_sensor = oscsensor
         if oscsensor in ["ZWO Seestar S30 Pro"]:
             recoded_sensor = "Sony IMX585"
         elif oscsensor in ["Dwarf 3"]:
@@ -1334,14 +1358,21 @@ class PreprocessingInterface(QMainWindow):
         if new_options:
             self.filter_combo.setCurrentText(new_options[0])
 
-        # Disable SPCC for Celestron Origin
-        if selected_scope == "Celestron Origin":
+        # Do not silently select an incorrect sensor response for S50 Pro.
+        if selected_scope in ("Celestron Origin", "ZWO Seestar S50 Pro"):
             self.spcc_checkbox.setChecked(False)
             self.spcc_checkbox.setEnabled(False)
-            self.siril.log(
-                "SPCC cannot be run on Celestron Origin automatically. It must be done manually.",
-                LogColor.SALMON,
-            )
+            if selected_scope == "ZWO Seestar S50 Pro":
+                message = (
+                    "Automatic SPCC is disabled for S50 Pro until an OmniVision "
+                    "OS08B10 spectral profile is validated. Calibrate colors manually."
+                )
+            else:
+                message = (
+                    "SPCC cannot be run on Celestron Origin automatically. "
+                    "It must be done manually."
+                )
+            self.siril.log(message, LogColor.SALMON)
         else:
             self.spcc_checkbox.setEnabled(True)
         # Update enabled state based on SPCC checkbox
@@ -2771,7 +2802,10 @@ class PreprocessingInterface(QMainWindow):
             self.weighting_method_combo.setCurrentText(
                 presets.get("weighting_method", "Noise")
             )
-            self.spcc_checkbox.setChecked(presets.get("spcc", False))
+            # Do not re-enable unsupported SPCC through a saved preset.
+            self.spcc_checkbox.setChecked(
+                presets.get("spcc", False) and self.spcc_checkbox.isEnabled()
+            )
             self.compression_checkbox.setChecked(presets.get("compression", False))
 
             self.siril.log(f"Loaded presets from {presets_file}", LogColor.GREEN)
